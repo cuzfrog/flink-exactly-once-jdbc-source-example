@@ -1,0 +1,70 @@
+plugins {
+	id 'org.springframework.boot' version '2.7.0'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+	id 'java'
+}
+
+ext {
+	flinkVersion = '1.15.0'
+	log4jVersion = '2.17.2'
+}
+
+group = 'com.github.cuzfrog'
+sourceCompatibility = '17'
+
+// NOTE: We cannot use "compileOnly" or "shadow" configurations since then we could not run code
+// in the IDE or with "gradle run". We also cannot exclude transitive dependencies from the
+// shadowJar yet (see https://github.com/johnrengelman/shadow/issues/159).
+// -> Explicitly define the // libraries we want to be included in the "flinkShadowJar" configuration!
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+	flinkShadowJar // dependencies which go into the shadowJar
+
+	// always exclude these (also from transitive dependencies) since they are provided by Flink
+	flinkShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
+	flinkShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
+	flinkShadowJar.exclude group: 'org.slf4j'
+	flinkShadowJar.exclude group: 'org.apache.logging.log4j'
+
+	implementation.exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+	testImplementation.exclude group: 'org.apache.logging.log4j'
+	testImplementation.exclude group: 'org.junit.vintage'
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+	// --------------------------------------------------------------
+	// Compile-time dependencies that should NOT be part of the
+	// shadow jar and are provided in the lib folder of Flink
+	// --------------------------------------------------------------
+	implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
+	implementation "org.apache.flink:flink-clients:${flinkVersion}"
+//
+	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+	runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+//
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation "org.apache.flink:flink-test-utils:${flinkVersion}"
+	testRuntimeOnly 'com.h2database:h2'
+}
+
+test {
+	useJUnitPlatform()
+}
+
+jar {
+	manifest {
+		attributes 'Build-Jdk': System.getProperty('java.version')
+	}
+}
+
+assemble {
+//	configurations = [project.configurations.flinkShadowJar]
+}
