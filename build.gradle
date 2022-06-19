@@ -10,7 +10,7 @@ ext {
 }
 
 group = 'com.github.cuzfrog'
-sourceCompatibility = '17'
+sourceCompatibility = '11'
 
 // NOTE: We cannot use "compileOnly" or "shadow" configurations since then we could not run code
 // in the IDE or with "gradle run". We also cannot exclude transitive dependencies from the
@@ -28,9 +28,13 @@ configurations {
 	flinkShadowJar.exclude group: 'org.slf4j'
 	flinkShadowJar.exclude group: 'org.apache.logging.log4j'
 
-	implementation.exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+//	implementation.exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
 	testImplementation.exclude group: 'org.apache.logging.log4j'
 	testImplementation.exclude group: 'org.junit.vintage'
+
+	h2 {
+		extendsFrom testRuntimeOnly
+	}
 }
 
 repositories {
@@ -67,4 +71,10 @@ jar {
 
 assemble {
 //	configurations = [project.configurations.flinkShadowJar]
+}
+
+task h2(type: JavaExec) {
+	classpath = configurations.h2
+	mainClass = 'org.h2.tools.Server'
+	args '-ifNotExists', '-baseDir', 'a:/tmp/h2'
 }
