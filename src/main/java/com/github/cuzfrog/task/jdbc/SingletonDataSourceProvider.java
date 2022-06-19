@@ -2,7 +2,6 @@ package com.github.cuzfrog.task.jdbc;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zaxxer.hikari.hibernate.HikariConfigurationUtil;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;

@@ -3,8 +3,6 @@ package com.github.cuzfrog.task.pipeline;
 import com.github.cuzfrog.task.domain.MySrcEvent;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -31,30 +29,32 @@ import java.util.function.Supplier;
 @Component
 final class JdbcSourceFunction extends RichSourceFunction<List<MySrcEvent>> implements CheckpointedFunction {
     private final Supplier<DataSource> dataSourceSupplier;
-    private final Supplier<ResultSetExtractor<List<MySrcEvent>>> resultSetExtractorSupplier;
+    private final Instant initInstant;
     private final Duration readDelay;
     private final Duration readWindow;
     private transient DataSource dataSource;
-    private transient ResultSetExtractor<List<MySrcEvent>> resultSetExtractor;
+    private final ResultSetExtractor<List<MySrcEvent>> resultSetExtractor;
     private transient ListState<Long> beginningTimestampState;
     private transient long beginningTimestamp;
     private transient volatile boolean isRunning = false;
 
     JdbcSourceFunction(@Qualifier("dataSourceProvider") Supplier<DataSource> dataSourceSupplier,
-                       @Qualifier("resultSetExtractorSupplier") Supplier<ResultSetExtractor<List<MySrcEvent>>> resultSetExtractorSupplier,
+                       ResultSetExtractor<List<MySrcEvent>> resultSetExtractor,
+                       @Value("${app.db.read.init-timestamp}") Instant initInstant,
                        @Value("${app.db.read-delay.duration}") Duration readDelay,
                        @Value("${app.db.read-window.duration}") Duration readWindow) {
+        this.resultSetExtractor = resultSetExtractor;
         if (!(dataSourceSupplier instanceof Serializable)) {
             throw new IllegalArgumentException("dataSourceSupplier must be serializable.");
         }
-        if (!(resultSetExtractorSupplier instanceof Serializable)) {
+        if (!(resultSetExtractor instanceof Serializable)) {
             throw new IllegalArgumentException("resultSetExtractor must be serializable.");
         }
         if (readDelay.compareTo(readWindow) <= 0) {
             throw new IllegalArgumentException("readDelay must > readWindow");
         }
         this.dataSourceSupplier = dataSourceSupplier;
-        this.resultSetExtractorSupplier = resultSetExtractorSupplier;
+        this.initInstant = initInstant;
         this.readDelay = readDelay;
         this.readWindow = readWindow;
     }
@@ -63,17 +63,16 @@ final class JdbcSourceFunction extends RichSourceFunction<List<MySrcEvent>> impl
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         this.dataSource = dataSourceSupplier.get();
-        this.resultSetExtractor = resultSetExtractorSupplier.get();
     }
 
     @Override
     public void run(SourceContext<List<MySrcEvent>> ctx) throws Exception {
         isRunning = true;
-        Instant beginningInstant = Instant.ofEpochMilli(beginningTimestamp);
         while (isRunning) {
+            Instant beginningInstant = Instant.ofEpochMilli(beginningTimestamp);
             Instant now = Instant.now();
             if (Duration.between(beginningInstant, now).compareTo(readDelay) > 0) {
-                long endingTimestamp = beginningInstant.plus(readWindow).toEpochMilli();
+                long endingTimestamp = now.minus(readDelay).plus(readWindow).toEpochMilli();
                 List<MySrcEvent> events;
                 //noinspection SqlResolve
                 try (Connection connection = dataSource.getConnection();
@@ -123,6 +122,8 @@ final class JdbcSourceFunction extends RichSourceFunction<List<MySrcEvent>> impl
                 this.beginningTimestamp = timestamp;
                 break;
             }
+        } else {
+            beginningTimestamp = initInstant.toEpochMilli();
         }
     }
 }

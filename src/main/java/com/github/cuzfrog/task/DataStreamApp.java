@@ -3,7 +3,6 @@ package com.github.cuzfrog.task;
 import com.github.cuzfrog.task.domain.MySrcEvent;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.springframework.boot.ApplicationArguments;
